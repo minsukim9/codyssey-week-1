@@ -1152,3 +1152,320 @@ docker attach \
 다시 `docker ps`를 실행했을 때 `ubuntu-background` 컨테이너가 계속 `Up` 상태를 유지했습니다.
 
 이번 실습을 통해 `docker attach`에서 `exit`를 입력하는 것과 연결만 해제하는 것은 서로 다른 동작임을 확인했습니다.
+
+## 9. Dockerfile 기반 커스텀 웹 서버 제작
+
+기존 NGINX 이미지를 기반으로 정적 웹 페이지를 추가한 커스텀 Docker 이미지를 제작했습니다.
+
+Dockerfile을 직접 작성한 뒤 이미지를 빌드하고, 컨테이너를 실행하여 터미널과 브라우저에서 웹 페이지에 정상적으로 접속할 수 있는지 검증했습니다.
+
+### 9.1 구현 방식
+
+과제에서 제시한 커스텀 이미지 제작 방식 중 다음 방식을 선택했습니다.
+
+```text
+(A) 웹 서버 베이스 이미지 활용 + 정적 콘텐츠 교체
+```
+
+베이스 이미지로 `nginx:alpine`을 사용했습니다.
+
+`nginx:alpine`은 NGINX 웹 서버가 포함되어 있으며, Alpine Linux 기반으로 이미지 크기가 비교적 작다는 특징이 있습니다.
+
+이번 실습에서는 NGINX 자체 설정을 변경하기보다 기본 정적 파일 경로에 직접 작성한 `index.html`을 복사하는 방식으로 웹 서버를 구성했습니다.
+
+### 9.2 웹 페이지 작성
+
+웹 서버에서 제공할 정적 페이지를 `app/index.html`에 작성했습니다.
+
+```bash
+mkdir -p app
+
+cat <<'EOF' > app/index.html
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+    <title>Codyssey Week 1</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background-color: #f4f6f8;
+        }
+
+        main {
+            padding: 40px;
+            text-align: center;
+            background-color: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <h1>Development Workstation</h1>
+        <p>Dockerfile로 실행한 NGINX 웹 서버입니다.</p>
+        <p>Codyssey Week 1</p>
+    </main>
+</body>
+</html>
+EOF
+```
+
+작성한 파일의 내용은 다음 명령으로 확인했습니다.
+
+```bash
+cat app/index.html
+```
+
+### 9.3 Dockerfile 작성
+
+프로젝트 루트에 다음 Dockerfile을 작성했습니다.
+
+```dockerfile
+FROM nginx:alpine
+
+LABEL org.opencontainers.image.title="codyssey-week-1"
+LABEL org.opencontainers.image.description="NGINX web server for Docker practice"
+
+COPY app/ /usr/share/nginx/html/
+
+EXPOSE 80
+```
+
+각 명령의 역할은 다음과 같습니다.
+
+| 명령 | 역할 |
+|---|---|
+| `FROM nginx:alpine` | NGINX가 설치된 기존 이미지를 베이스 이미지로 사용 |
+| `LABEL` | 이미지의 이름과 설명 같은 메타데이터 기록 |
+| `COPY app/ ...` | 호스트의 정적 웹 파일을 NGINX 기본 문서 경로로 복사 |
+| `EXPOSE 80` | 컨테이너가 80번 포트를 사용한다는 정보를 명시 |
+
+이번 이미지에 적용한 커스텀 포인트는 다음과 같습니다.
+
+- 기본 NGINX 페이지를 직접 작성한 웹 페이지로 교체했습니다.
+- 이미지의 목적을 확인할 수 있도록 `LABEL`을 추가했습니다.
+- 정적 파일만 포함하여 동일한 페이지를 반복해서 실행할 수 있도록 구성했습니다.
+
+### 9.4 `.dockerignore` 작성
+
+Docker 이미지 빌드에 필요하지 않은 파일이 빌드 컨텍스트에 포함되지 않도록 `.dockerignore`를 작성했습니다.
+
+```text
+.git
+.gitignore
+.DS_Store
+README.md
+images
+permission-practice
+terminal-practice
+```
+
+`.dockerignore`를 사용하면 불필요한 파일이 Docker 데몬에 전달되는 것을 줄이고, 민감하거나 용량이 큰 파일이 실수로 이미지에 포함되는 것을 방지할 수 있습니다.
+
+### 9.5 프로젝트 구조 확인
+
+웹 서버 관련 파일을 추가한 뒤 프로젝트 구조를 확인했습니다.
+
+```bash
+tree -a -L 3 -I '.git|.DS_Store'
+```
+
+웹 서버와 관련된 주요 구조는 다음과 같습니다.
+
+```text
+.
+├── .dockerignore
+├── Dockerfile
+├── README.md
+├── app
+│   └── index.html
+└── images
+    └── web-server-practice
+```
+
+### 9.6 커스텀 이미지 빌드
+
+프로젝트 루트를 Docker 빌드 컨텍스트로 사용하여 커스텀 이미지를 생성했습니다.
+
+```bash
+docker build -t codyssey-web:1.0 .
+```
+
+이미지 이름은 `codyssey-web`, 태그는 `1.0`으로 지정했습니다.
+
+빌드된 이미지는 다음 명령으로 확인했습니다.
+
+```bash
+docker images codyssey-web
+```
+
+![커스텀 이미지 빌드](./images/web-server-practice/docker-build.png)
+
+`docker images` 목록에서 `codyssey-web:1.0` 이미지가 생성된 것을 확인했습니다.
+
+### 9.7 웹 서버 컨테이너 실행
+
+빌드한 이미지를 사용하여 `codyssey-web` 컨테이너를 백그라운드에서 실행했습니다.
+
+```bash
+docker run -d \
+  --name codyssey-web \
+  -p 8080:80 \
+  codyssey-web:1.0
+```
+
+실행 중인 컨테이너는 다음 명령으로 확인했습니다.
+
+```bash
+docker ps
+```
+
+```text
+0.0.0.0:8080->80/tcp
+```
+
+![웹 서버 컨테이너 실행](./images/web-server-practice/container-running.png)
+
+`STATUS`가 `Up`으로 표시되고, `PORTS` 항목에 `8080->80`이 출력되는 것을 확인했습니다.
+
+### 9.8 컨테이너 로그 확인
+
+NGINX 컨테이너의 실행 로그를 확인했습니다.
+
+```bash
+docker logs codyssey-web
+```
+
+![웹 서버 컨테이너 로그](./images/web-server-practice/container-logs.png)
+
+NGINX 초기화 과정과 웹 서버 실행 로그가 출력되는 것을 통해 컨테이너가 정상적으로 시작되었음을 확인했습니다.
+
+### 9.9 터미널에서 웹 서버 응답 확인
+
+`curl` 명령으로 호스트의 8080번 포트에 요청을 보냈습니다.
+
+```bash
+curl http://localhost:8080
+```
+
+응답으로 직접 작성한 `index.html` 내용이 출력되는 것을 확인했습니다.
+
+![curl 응답 확인](./images/web-server-practice/curl-response.png)
+
+HTTP 응답 상태는 다음 명령으로 추가 확인했습니다.
+
+```bash
+curl -I http://localhost:8080
+```
+
+```text
+HTTP/1.1 200 OK
+```
+
+`200 OK`는 웹 서버가 요청을 정상적으로 처리했다는 의미입니다.
+
+### 9.10 브라우저 접속 확인
+
+브라우저 주소창에 다음 주소를 입력했습니다.
+
+```text
+http://localhost:8080
+```
+
+주소창의 포트 번호와 직접 작성한 웹 페이지가 함께 표시되는 것을 확인했습니다.
+
+![브라우저 접속 성공](./images/web-server-practice/browser-response.png)
+
+이를 통해 호스트의 8080번 포트로 들어온 요청이 Docker 컨테이너 내부의 NGINX 80번 포트로 정상적으로 전달되는 것을 확인했습니다.
+
+### 9.11 포트 매핑이 필요한 이유
+
+컨테이너는 호스트와 분리된 네트워크 환경에서 실행됩니다.
+
+따라서 컨테이너 내부에서 NGINX가 80번 포트를 사용하고 있더라도, 별도의 포트 매핑 없이 호스트의 브라우저에서 직접 접근할 수 없습니다.
+
+이번 실습에서는 다음 옵션을 사용했습니다.
+
+```text
+-p 8080:80
+```
+
+각 포트의 의미는 다음과 같습니다.
+
+| 구분 | 포트 | 의미 |
+|---|---:|---|
+| 호스트 포트 | `8080` | MacBook에서 브라우저나 `curl`로 접근하는 포트 |
+| 컨테이너 포트 | `80` | NGINX가 컨테이너 내부에서 요청을 받는 포트 |
+
+요청 흐름은 다음과 같습니다.
+
+```text
+브라우저 또는 curl
+        ↓
+MacBook의 localhost:8080
+        ↓
+Docker 포트 매핑
+        ↓
+NGINX 컨테이너의 80번 포트
+```
+
+포트 매핑을 통해 격리된 컨테이너의 서비스를 호스트 외부에 노출할 수 있습니다.
+
+### 9.12 Docker 운영 명령 확인
+
+실행 중인 웹 서버를 대상으로 이미지, 컨테이너, 로그 및 리소스 상태를 확인했습니다.
+
+```bash
+docker images
+docker ps
+docker ps -a
+docker logs codyssey-web
+docker stats --no-stream codyssey-web
+```
+
+`docker stats --no-stream` 명령으로 웹 서버 컨테이너의 CPU, 메모리, 네트워크 및 디스크 사용량을 한 번만 출력하여 확인했습니다.
+
+### 9.13 커스텀 이미지와 컨테이너의 관계
+
+이번 실습에서 작성한 Dockerfile은 커스텀 이미지를 생성하기 위한 설계 파일입니다.
+
+```text
+Dockerfile
+    ↓ docker build
+codyssey-web:1.0 이미지
+    ↓ docker run
+codyssey-web 컨테이너
+```
+
+Dockerfile이나 `app/index.html`을 수정하더라도 기존에 빌드된 이미지의 내용이 자동으로 변경되지는 않습니다.
+
+변경 내용을 이미지에 반영하려면 다음 명령으로 다시 빌드해야 합니다.
+
+```bash
+docker build -t codyssey-web:1.0 .
+```
+
+이미지는 컨테이너를 생성하기 위한 읽기 전용 템플릿이고, 컨테이너는 해당 이미지를 기반으로 만들어진 실제 실행 환경입니다.
+
+### 9.14 검증 결과
+
+이번 실습을 통해 다음 내용을 확인했습니다.
+
+- 기존 `nginx:alpine` 이미지를 기반으로 커스텀 이미지를 만들었습니다.
+- Dockerfile에서 정적 웹 콘텐츠를 NGINX 경로에 복사했습니다.
+- `docker build`로 `codyssey-web:1.0` 이미지 생성에 성공했습니다.
+- `docker run`으로 웹 서버 컨테이너 실행에 성공했습니다.
+- `-p 8080:80`으로 호스트와 컨테이너의 포트를 연결했습니다.
+- `curl` 응답과 브라우저 화면에서 웹 페이지가 정상적으로 제공되는 것을 확인했습니다.
+- Dockerfile을 이용하면 동일한 웹 서버 환경을 반복해서 재현할 수 있음을 확인했습니다.
