@@ -1729,3 +1729,288 @@ docker stats --no-stream bind-web
 - `readonly` 옵션으로 컨테이너의 파일 수정 권한을 제한할 수 있습니다.
 - Dockerfile의 `COPY`는 배포용 이미지 제작에 적합합니다.
 - 바인드 마운트는 로컬 개발 중 변경 사항을 빠르게 확인할 때 적합합니다.
+
+## 11. Docker 볼륨 영속성 검증
+
+Docker 볼륨을 생성해 Ubuntu 컨테이너의 `/data` 디렉토리에 연결하고, 컨테이너를 삭제한 뒤 새로운 컨테이너에 동일한 볼륨을 연결하여 기존 데이터가 유지되는지 확인했습니다.
+
+### 11.1 Docker 볼륨 생성
+
+`codyssey-data`라는 이름의 Docker 볼륨을 생성했습니다.
+
+```bash
+docker volume create codyssey-data
+```
+
+생성된 볼륨은 다음 명령으로 확인했습니다.
+
+```bash
+docker volume ls
+```
+
+```text
+DRIVER    VOLUME NAME
+local     codyssey-data
+```
+
+![Docker 볼륨 생성](./images/volume-practice/volume-create.png)
+
+Docker 볼륨은 컨테이너의 파일 시스템과 분리되어 관리되는 영속 저장소입니다.
+
+컨테이너가 삭제되더라도 볼륨을 별도로 삭제하지 않는 한 볼륨에 저장된 데이터는 유지됩니다.
+
+### 11.2 Docker 볼륨 상세 정보 확인
+
+`docker volume inspect` 명령으로 생성한 볼륨의 상세 정보를 확인했습니다.
+
+```bash
+docker volume inspect codyssey-data
+```
+
+![Docker 볼륨 상세 정보](./images/volume-practice/volume-inspect.png)
+
+주요 확인 항목은 다음과 같습니다.
+
+| 항목 | 의미 |
+|---|---|
+| `Name` | Docker 볼륨의 이름 |
+| `Driver` | 볼륨을 관리하는 드라이버 |
+| `Mountpoint` | Docker 환경 내부에서 볼륨 데이터가 저장되는 위치 |
+| `Scope` | 볼륨이 사용되는 범위 |
+
+Docker Desktop은 macOS 위의 Linux 가상 환경에서 Docker 엔진을 실행합니다. 따라서 `Mountpoint`에 표시된 경로는 일반적인 macOS 디렉토리 경로가 아니라 Docker가 관리하는 Linux 환경 내부의 경로입니다.
+
+### 11.3 첫 번째 컨테이너에 볼륨 연결
+
+생성한 `codyssey-data` 볼륨을 첫 번째 Ubuntu 컨테이너의 `/data` 경로에 연결했습니다.
+
+```bash
+docker run -d \
+  --name volume-test-1 \
+  --mount type=volume,source=codyssey-data,target=/data \
+  ubuntu:24.04 \
+  sleep infinity
+```
+
+각 설정의 의미는 다음과 같습니다.
+
+| 설정 | 의미 |
+|---|---|
+| `-d` | 컨테이너를 백그라운드에서 실행 |
+| `--name volume-test-1` | 첫 번째 컨테이너 이름 지정 |
+| `type=volume` | Docker 볼륨 방식 사용 |
+| `source=codyssey-data` | 연결할 Docker 볼륨 지정 |
+| `target=/data` | 컨테이너 내부에서 볼륨을 연결할 경로 |
+| `sleep infinity` | 컨테이너가 종료되지 않고 계속 실행되도록 유지 |
+
+컨테이너 실행 상태는 다음 명령으로 확인했습니다.
+
+```bash
+docker ps
+```
+
+### 11.4 볼륨에 데이터 저장
+
+첫 번째 컨테이너의 `/data` 디렉토리에 `message.txt` 파일을 생성했습니다.
+
+```bash
+docker exec volume-test-1 \
+  bash -c 'echo "Persistent data from codyssey" > /data/message.txt'
+```
+
+파일 목록과 저장된 내용을 확인했습니다.
+
+```bash
+docker exec volume-test-1 ls -l /data
+docker exec volume-test-1 cat /data/message.txt
+```
+
+```text
+Persistent data from codyssey
+```
+
+![컨테이너 삭제 전 데이터 확인](./images/volume-practice/data-before-delete.png)
+
+이를 통해 컨테이너 내부의 `/data/message.txt` 파일이 연결된 `codyssey-data` 볼륨에 저장된 것을 확인했습니다.
+
+### 11.5 컨테이너의 볼륨 연결 정보 확인
+
+`docker inspect` 명령으로 첫 번째 컨테이너에 적용된 볼륨 정보를 확인했습니다.
+
+```bash
+docker inspect volume-test-1 \
+  --format '{{range .Mounts}}{{println "Type:" .Type}}{{println "Name:" .Name}}{{println "Destination:" .Destination}}{{println "RW:" .RW}}{{end}}'
+```
+
+출력 결과는 다음과 같은 형태로 나타났습니다.
+
+```text
+Type: volume
+Name: codyssey-data
+Destination: /data
+RW: true
+```
+
+![컨테이너 볼륨 연결 정보](./images/volume-practice/container-volume-info.png)
+
+`RW: true`는 컨테이너가 연결된 볼륨에 데이터를 읽고 쓸 수 있다는 의미입니다.
+
+### 11.6 첫 번째 컨테이너 삭제
+
+데이터를 생성한 `volume-test-1` 컨테이너를 삭제했습니다.
+
+```bash
+docker rm -f volume-test-1
+```
+
+삭제 여부를 확인했습니다.
+
+```bash
+docker ps -a --filter "name=volume-test-1"
+```
+
+![첫 번째 컨테이너 삭제](./images/volume-practice/container-deleted1.png)
+
+첫 번째 컨테이너를 삭제한 후에도 Docker 볼륨이 유지되는지 확인했습니다.
+
+```bash
+docker volume ls
+```
+
+목록에 `codyssey-data`가 계속 표시되는 것을 확인했습니다.
+
+![컨테이너 삭제 후 볼륨 유지](./images/volume-practice/container-deleted2.png)
+
+컨테이너와 Docker 볼륨은 서로 독립적으로 관리되기 때문에 컨테이너를 삭제해도 이름이 지정된 볼륨은 자동으로 삭제되지 않습니다.
+
+### 11.7 두 번째 컨테이너에 동일한 볼륨 연결
+
+새로운 `volume-test-2` 컨테이너를 실행하면서 기존 `codyssey-data` 볼륨을 동일한 `/data` 경로에 연결했습니다.
+
+```bash
+docker run -d \
+  --name volume-test-2 \
+  --mount type=volume,source=codyssey-data,target=/data \
+  ubuntu:24.04 \
+  sleep infinity
+```
+
+실행 상태를 확인했습니다.
+
+```bash
+docker ps
+```
+
+이 컨테이너는 첫 번째 컨테이너와 이름 및 파일 시스템이 다른 새로운 컨테이너이지만, 동일한 Docker 볼륨을 사용합니다.
+
+### 11.8 컨테이너 삭제 후 데이터 유지 확인
+
+두 번째 컨테이너에서 `/data` 디렉토리의 파일 목록을 확인했습니다.
+
+```bash
+docker exec volume-test-2 ls -l /data
+```
+
+첫 번째 컨테이너에서 생성한 파일의 내용을 확인했습니다.
+
+```bash
+docker exec volume-test-2 cat /data/message.txt
+```
+
+```text
+Persistent data from codyssey
+```
+
+![컨테이너 삭제 후 데이터 유지 확인](./images/volume-practice/data-after-delete.png)
+
+첫 번째 컨테이너를 삭제했음에도 새로운 컨테이너에서 기존 `message.txt` 파일을 조회할 수 있었습니다.
+
+데이터 유지 과정은 다음과 같습니다.
+
+```text
+volume-test-1 컨테이너
+        │
+        │ message.txt 저장
+        ▼
+codyssey-data 볼륨
+        │
+        │ volume-test-1 삭제 후에도 유지
+        ▼
+volume-test-2 컨테이너
+        │
+        │ 동일한 볼륨 연결
+        ▼
+기존 message.txt 조회 성공
+```
+
+이를 통해 데이터가 컨테이너 자체의 파일 시스템이 아니라 별도로 연결한 Docker 볼륨에 저장되었다는 것을 확인했습니다.
+
+### 11.9 컨테이너 파일 시스템과 Docker 볼륨 비교
+
+| 구분 | 컨테이너 파일 시스템 | Docker 볼륨 |
+|---|---|---|
+| 저장 위치 | 개별 컨테이너 내부 | Docker가 관리하는 별도 저장소 |
+| 컨테이너 삭제 시 | 함께 삭제될 수 있음 | 별도로 삭제하지 않으면 유지 |
+| 다른 컨테이너 연결 | 직접 공유하기 어려움 | 동일한 볼륨을 여러 컨테이너에 연결 가능 |
+| 주요 사용 목적 | 임시 실행 파일 | 데이터베이스, 업로드 파일 등 영속 데이터 |
+| 관리 방식 | 컨테이너에 종속 | 컨테이너와 독립적으로 관리 |
+
+컨테이너 내부에만 저장한 데이터는 컨테이너 삭제 시 함께 사라질 수 있습니다.
+
+반면 Docker 볼륨을 사용하면 컨테이너의 생성 및 삭제 주기와 관계없이 데이터를 유지할 수 있습니다.
+
+### 11.10 바인드 마운트와 Docker 볼륨 비교
+
+| 구분 | 바인드 마운트 | Docker 볼륨 |
+|---|---|---|
+| 관리 주체 | 사용자가 호스트 경로를 직접 관리 | Docker가 저장 위치를 관리 |
+| 연결 대상 | 호스트의 특정 파일 또는 디렉토리 | Docker가 생성한 독립적인 저장소 |
+| 호스트 경로 의존성 | 높음 | 비교적 낮음 |
+| 변경 내용 확인 | 호스트에서 직접 확인 가능 | 컨테이너나 Docker 명령으로 확인 |
+| 주요 사용 목적 | 소스코드 변경 즉시 반영 | 영속 데이터 저장 |
+| 활용 예시 | 개발 소스, 설정 파일 | 데이터베이스, 업로드 파일, 애플리케이션 데이터 |
+
+바인드 마운트는 호스트의 소스코드를 컨테이너에서 직접 사용하는 개발 환경에 적합합니다.
+
+Docker 볼륨은 호스트의 특정 경로에 직접 의존하지 않으면서 컨테이너 데이터를 영속적으로 저장해야 하는 상황에 적합합니다.
+
+### 11.11 볼륨 관리 명령
+
+Docker 볼륨은 다음 명령으로 관리할 수 있습니다.
+
+```bash
+# 볼륨 생성
+docker volume create codyssey-data
+
+# 볼륨 목록 확인
+docker volume ls
+
+# 볼륨 상세 정보 확인
+docker volume inspect codyssey-data
+
+# 볼륨 삭제
+docker volume rm codyssey-data
+```
+
+볼륨을 삭제하면 저장된 데이터도 함께 삭제되므로, 필요한 데이터가 없는지 확인한 후 삭제해야 합니다.
+
+실습 결과를 검증하는 동안에는 `volume-test-2` 컨테이너와 `codyssey-data` 볼륨을 유지했습니다.
+
+최종 정리가 필요한 경우 다음 명령을 사용할 수 있습니다.
+
+```bash
+docker rm -f volume-test-2
+docker volume rm codyssey-data
+```
+
+### 11.12 검증 결과
+
+이번 실습을 통해 다음 내용을 확인했습니다.
+
+- Docker 볼륨을 직접 생성하고 목록 및 상세 정보를 확인할 수 있습니다.
+- Docker 볼륨을 컨테이너의 특정 경로에 연결할 수 있습니다.
+- 볼륨에 저장한 데이터는 컨테이너의 파일 시스템과 분리되어 관리됩니다.
+- 데이터를 생성한 컨테이너를 삭제해도 Docker 볼륨은 유지됩니다.
+- 새로운 컨테이너에 동일한 볼륨을 연결하면 기존 데이터를 다시 조회할 수 있습니다.
+- Docker 볼륨은 컨테이너의 생명주기와 독립적으로 영속 데이터를 관리할 때 사용합니다.
+- 바인드 마운트는 개발 파일 공유에 적합하고, Docker 볼륨은 영속 데이터 저장에 적합합니다.
