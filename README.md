@@ -2457,7 +2457,158 @@ docker run -d \
 
 읽기 전용 마운트를 사용하면 컨테이너 프로세스가 호스트의 소스코드를 실수로 변경하는 것을 방지할 수 있습니다.
 
-### 13.5 트러블슈팅 결과
+### 13.5 호스트 포트 충돌로 인한 컨테이너 실행 실패
+
+#### 문제
+
+기존 `bind-web` 컨테이너가 호스트의 8080번 포트를 사용하고 있는 상태에서 새로운 NGINX 컨테이너에도 동일한 포트를 연결하려고 했습니다.
+
+```bash
+docker run -d \
+  --name port-conflict-web \
+  -p 8080:80 \
+  nginx:alpine
+```
+
+컨테이너 실행 과정에서 다음과 같은 포트 충돌 오류가 발생했습니다.
+
+```text
+Bind for 0.0.0.0:8080 failed: port is already allocated
+```
+
+![포트 충돌 발생](./images/port-troubleshooting/port-conflict.png)
+
+#### 원인 가설
+
+Docker의 `-p 8080:80` 설정은 호스트의 8080번 포트를 컨테이너 내부의 80번 포트에 연결합니다.
+
+하나의 호스트 포트는 같은 주소에서 여러 컨테이너가 동시에 사용할 수 없기 때문에, 기존 컨테이너가 8080번 포트를 점유하고 있는 것으로 판단했습니다.
+
+#### 포트 사용 상태 확인
+
+macOS에서 8080번 포트를 사용 중인 프로세스를 확인하기 위해 `lsof` 명령을 실행했습니다.
+
+```bash
+lsof -nP -iTCP:8080 -sTCP:LISTEN
+```
+
+```text
+COMMAND     PID   USER   FD   TYPE   DEVICE   SIZE/OFF   NODE   NAME
+com.docke  <PID>  ...   ...  IPv6   ...      ...        TCP    *:8080 (LISTEN)
+```
+
+각 옵션의 의미는 다음과 같습니다.
+
+| 옵션 | 의미 |
+|---|---|
+| `-n` | 호스트 이름 변환 생략 |
+| `-P` | 포트 번호를 서비스 이름으로 변환하지 않음 |
+| `-iTCP:8080` | TCP 8080번 포트를 사용하는 프로세스 조회 |
+| `-sTCP:LISTEN` | 연결 요청을 기다리는 프로세스만 조회 |
+
+Docker Desktop 환경에서는 호스트 포트를 중계하는 Docker 관련 프로세스가 출력될 수 있습니다.
+
+#### 프로세스 및 컨테이너 확인
+
+`lsof`에서 확인한 PID의 프로세스 정보를 조회했습니다.
+
+```bash
+ps -p <PID> -o pid,ppid,user,command
+```
+
+Docker 컨테이너 중 8080번 포트를 공개하고 있는 컨테이너도 확인했습니다.
+
+```bash
+docker ps --filter "publish=8080"
+```
+
+```text
+CONTAINER ID   IMAGE          PORTS                  NAMES
+<container-id> nginx:alpine   0.0.0.0:8080->80/tcp   bind-web
+```
+
+`docker port` 명령으로 `bind-web`의 포트 연결 정보를 추가로 확인했습니다.
+
+```bash
+docker port bind-web
+```
+
+```text
+80/tcp -> 0.0.0.0:8080
+```
+
+![8080 포트 및 프로세스 확인](./images/port-troubleshooting/port-process-check.png)
+
+이를 통해 `bind-web` 컨테이너가 이미 호스트의 8080번 포트를 사용하고 있어 새로운 컨테이너가 같은 포트를 사용할 수 없다는 것을 확인했습니다.
+
+#### 해결
+
+포트 충돌로 정상 실행되지 않은 컨테이너를 삭제했습니다.
+
+```bash
+docker rm -f port-conflict-web
+```
+
+기존 `bind-web` 컨테이너의 8080번 포트는 그대로 유지하고, 새로운 컨테이너에는 사용하지 않는 8081번 호스트 포트를 할당했습니다.
+
+```bash
+docker run -d \
+  --name port-change-web \
+  -p 8081:80 \
+  nginx:alpine
+```
+
+실행 중인 컨테이너의 포트 연결을 확인했습니다.
+
+```bash
+docker ps --filter "name=port-change-web"
+```
+
+```text
+0.0.0.0:8081->80/tcp
+```
+
+8081번 포트가 연결 대기 상태인지 확인했습니다.
+
+```bash
+lsof -nP -iTCP:8081 -sTCP:LISTEN
+```
+
+웹 서버의 HTTP 응답도 확인했습니다.
+
+```bash
+curl -I http://localhost:8081
+```
+
+```text
+HTTP/1.1 200 OK
+```
+
+![포트 변경 후 실행 성공](./images/port-troubleshooting/port-change-success.png)
+
+#### 결과
+
+호스트 포트를 8080번에서 8081번으로 변경한 뒤 새로운 NGINX 컨테이너가 정상적으로 실행되었습니다.
+
+이번 문제를 통해 포트 충돌이 발생하면 다음 순서로 진단할 수 있음을 확인했습니다.
+
+```text
+컨테이너 실행 오류 확인
+        ↓
+lsof로 호스트 포트 사용 여부 확인
+        ↓
+ps로 PID의 프로세스 확인
+        ↓
+docker ps와 docker port로 점유 컨테이너 확인
+        ↓
+기존 프로세스 종료 또는 호스트 포트 변경
+        ↓
+curl로 변경된 포트의 응답 확인
+```
+
+컨테이너 내부의 NGINX 포트는 계속 80번을 사용하지만, 호스트 포트는 실행 환경에 맞게 8081번 등 다른 포트로 변경할 수 있습니다.
+
+### 13.6 트러블슈팅 결과
 
 이번 트러블슈팅을 통해 다음 내용을 확인했습니다.
 
