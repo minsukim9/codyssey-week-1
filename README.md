@@ -734,3 +734,421 @@ Docker 이미지와 컨테이너는 다음과 같은 차이가 있습니다.
 - 컨테이너의 메인 프로세스가 끝나면 컨테이너도 종료됩니다.
 - 종료된 컨테이너도 삭제 전까지 로그와 실행 상태를 확인할 수 있습니다.
 - `docker stats`를 통해 실행 중인 컨테이너의 자원 사용량을 확인할 수 있습니다.
+
+## 7. Ubuntu 컨테이너 실행 및 접속 방식 비교
+
+Ubuntu 컨테이너를 대화형 모드와 백그라운드 모드로 실행하고, `docker exec`와 `docker attach`를 이용해 컨테이너에 접속했습니다.
+
+각 접속 방식에서 `exit`가 컨테이너 상태에 어떤 영향을 주는지 직접 확인했습니다.
+
+### 7.1 Ubuntu 이미지 다운로드
+
+Ubuntu 24.04 이미지를 Docker Hub에서 다운로드했습니다.
+
+```bash
+docker pull ubuntu:24.04
+```
+
+다운로드한 이미지가 로컬에 저장되었는지 확인했습니다.
+
+```bash
+docker images
+```
+
+![Ubuntu 이미지 확인](./images/ubuntu-practice/ubuntu-image.png)
+
+### 7.2 대화형 Ubuntu 컨테이너 실행
+
+`-it` 옵션을 사용하여 Ubuntu 컨테이너를 실행하고 내부 Bash 셸에 접속했습니다.
+
+```bash
+docker run -it \
+  --name ubuntu-interactive \
+  ubuntu:24.04 \
+  bash
+```
+
+옵션의 의미는 다음과 같습니다.
+
+| 옵션 | 의미 |
+|---|---|
+| `-i` | 표준 입력을 유지 |
+| `-t` | 가상 터미널을 할당 |
+| `--name` | 컨테이너 이름 지정 |
+
+명령 실행 후 터미널 프롬프트가 다음과 같이 변경되었습니다.
+
+```text
+root@<container-id>:/#
+```
+
+이는 현재 명령이 macOS가 아니라 Ubuntu 컨테이너 내부에서 실행되고 있다는 의미입니다.
+
+### 7.3 컨테이너 내부 환경 확인
+
+컨테이너 내부에서 현재 위치와 파일 목록, 운영체제 및 CPU 아키텍처를 확인했습니다.
+
+```bash
+pwd
+ls -la
+echo "Hello from Ubuntu container"
+cat /etc/os-release
+uname -m
+```
+
+주요 출력 결과는 다음과 같습니다.
+
+```text
+/
+Hello from Ubuntu container
+```
+
+`cat /etc/os-release` 결과를 통해 컨테이너 내부 운영체제가 Ubuntu임을 확인했습니다.
+
+Apple Silicon Mac에서 ARM64 기반 Ubuntu 이미지를 실행했기 때문에 `uname -m` 결과는 다음과 같이 출력되었습니다.
+
+```text
+aarch64
+```
+
+![Ubuntu 컨테이너 내부 확인](./images/ubuntu-practice/ubuntu-inside.png)
+
+### 7.4 대화형 컨테이너 종료
+
+컨테이너 내부에서 `exit`를 입력했습니다.
+
+```bash
+exit
+```
+
+macOS 터미널로 돌아온 뒤 컨테이너 상태를 확인했습니다.
+
+```bash
+docker ps
+docker ps -a
+```
+
+`docker ps`에는 컨테이너가 표시되지 않았지만, `docker ps -a`에서는 `ubuntu-interactive` 컨테이너가 종료된 상태로 표시되었습니다.
+
+```text
+Exited (0)
+```
+
+![대화형 컨테이너 종료 확인](./images/ubuntu-practice/interactive-exit.png)
+
+이번 컨테이너에서는 `bash`가 메인 프로세스였습니다. 따라서 Bash에서 `exit`를 입력하자 메인 프로세스가 종료되었고, 컨테이너도 함께 종료되었습니다.
+
+### 7.5 종료된 컨테이너 다시 실행
+
+종료된 컨테이너를 새로 생성하지 않고 다시 시작했습니다.
+
+```bash
+docker start -ai ubuntu-interactive
+```
+
+옵션의 의미는 다음과 같습니다.
+
+| 옵션 | 의미 |
+|---|---|
+| `-a` | 컨테이너의 표준 출력에 연결 |
+| `-i` | 표준 입력을 유지 |
+
+컨테이너 내부에서 다음 명령을 실행해 정상적으로 재시작되었는지 확인했습니다.
+
+```bash
+echo "Container restarted"
+```
+
+이후 다시 `exit`를 입력하여 컨테이너를 종료했습니다.
+
+```bash
+exit
+```
+
+### 7.6 백그라운드 Ubuntu 컨테이너 실행
+
+이번에는 Ubuntu 컨테이너를 백그라운드에서 실행했습니다.
+
+```bash
+docker run -dit \
+  --name ubuntu-background \
+  ubuntu:24.04 \
+  bash
+```
+
+옵션의 의미는 다음과 같습니다.
+
+| 옵션 | 의미 |
+|---|---|
+| `-d` | 컨테이너를 백그라운드에서 실행 |
+| `-i` | 표준 입력을 유지 |
+| `-t` | 가상 터미널을 할당 |
+
+실행 중인 컨테이너를 확인했습니다.
+
+```bash
+docker ps
+```
+
+`ubuntu-background` 컨테이너가 `Up` 상태로 표시되는 것을 확인했습니다.
+
+![백그라운드 컨테이너 실행](./images/ubuntu-practice/background-running.png)
+
+### 7.7 `docker exec`를 이용한 접속
+
+`docker exec` 명령으로 실행 중인 컨테이너 내부에 새로운 Bash 프로세스를 실행했습니다.
+
+```bash
+docker exec -it ubuntu-background bash
+```
+
+컨테이너 내부에서 다음 명령을 실행했습니다.
+
+```bash
+echo "Connected with docker exec"
+pwd
+ls -la
+```
+
+이후 `exit`를 입력해 Bash에서 빠져나왔습니다.
+
+```bash
+exit
+```
+
+macOS 터미널에서 컨테이너 상태를 다시 확인했습니다.
+
+```bash
+docker ps
+```
+
+`docker exec`로 실행한 Bash에서는 `exit`를 입력했지만, `ubuntu-background` 컨테이너는 계속 `Up` 상태를 유지했습니다.
+
+![docker exec 접속](./images/ubuntu-practice/docker-exec.png)
+
+`docker exec`는 컨테이너의 메인 프로세스에 연결하는 것이 아니라, 컨테이너 내부에 별도의 프로세스를 추가로 실행합니다.
+
+따라서 `docker exec`로 실행한 Bash가 종료되어도 컨테이너의 메인 프로세스는 계속 실행됩니다.
+
+### 7.8 `docker attach`를 이용한 접속
+
+`docker attach` 명령으로 실행 중인 컨테이너의 메인 프로세스에 직접 연결했습니다.
+
+```bash
+docker attach ubuntu-background
+```
+
+컨테이너 내부에서 다음 명령을 실행했습니다.
+
+```bash
+echo "Connected with docker attach"
+```
+
+```text
+Connected with docker attach
+```
+
+![docker attach 접속](./images/ubuntu-practice/docker-attach.png)
+
+`docker attach`는 컨테이너 내부에 새로운 프로세스를 생성하는 것이 아니라, 현재 실행 중인 메인 프로세스의 표준 입력과 출력에 직접 연결합니다.
+
+### 7.9 `docker attach`에서 `exit` 실행 결과
+
+`docker attach`로 연결된 상태에서 `exit`를 입력했습니다.
+
+```bash
+exit
+```
+
+이후 컨테이너 상태를 확인했습니다.
+
+```bash
+docker ps
+```
+
+```text
+CONTAINER ID   IMAGE   COMMAND   CREATED   STATUS   PORTS   NAMES
+```
+
+실행 중인 컨테이너 목록이 비어 있는 것을 확인했습니다.
+
+`ubuntu-background` 컨테이너의 메인 프로세스는 `bash`였습니다. `docker attach`는 이 메인 Bash에 직접 연결하므로, `exit`를 입력하자 메인 프로세스가 종료되었고 컨테이너도 함께 종료되었습니다.
+
+종료된 컨테이너를 포함한 전체 목록은 다음 명령으로 확인했습니다.
+
+```bash
+docker ps -a --filter "name=ubuntu-background"
+```
+
+### 7.10 컨테이너를 종료하지 않고 `attach` 연결 해제
+
+Docker의 기본 연결 해제 키는 다음과 같습니다.
+
+```text
+Control + P
+Control + Q
+```
+
+하지만 VSCode 통합 터미널에서는 해당 키 조합이 단축키와 충돌하거나 입력이 제대로 전달되지 않을 수 있습니다.
+
+따라서 `--detach-keys` 옵션을 사용해 연결 해제 키를 `Control + X`로 변경했습니다.
+
+먼저 종료된 컨테이너를 다시 시작했습니다.
+
+```bash
+docker start ubuntu-background
+```
+
+사용자 지정 연결 해제 키를 지정하여 컨테이너에 연결했습니다.
+
+```bash
+docker attach \
+  --detach-keys="ctrl-x" \
+  ubuntu-background
+```
+
+컨테이너 내부에서 다음 명령을 실행했습니다.
+
+```bash
+echo "Connected with custom detach key"
+```
+
+이후 `Control + X`를 눌러 컨테이너를 종료하지 않고 연결만 해제했습니다.
+
+macOS 터미널에서 컨테이너 상태를 확인했습니다.
+
+```bash
+docker ps
+```
+
+`ubuntu-background`가 계속 `Up` 상태로 표시되는 것을 통해 메인 프로세스를 종료하지 않고 연결만 해제된 것을 확인했습니다.
+
+### 7.11 `docker exec`와 `docker attach` 비교
+
+| 구분 | `docker exec` | `docker attach` |
+|---|---|---|
+| 연결 방식 | 컨테이너 내부에 새 프로세스 실행 | 실행 중인 메인 프로세스에 직접 연결 |
+| Bash 실행 | 새로운 Bash 프로세스 생성 | 기존 메인 Bash 사용 |
+| `exit` 실행 결과 | 추가 Bash만 종료 | 메인 Bash와 컨테이너가 함께 종료될 수 있음 |
+| 컨테이너 유지 여부 | 일반적으로 유지됨 | 메인 프로세스 종료 시 컨테이너도 종료됨 |
+| 주요 용도 | 컨테이너 내부 점검 및 명령 실행 | 메인 프로세스의 입출력 확인 |
+
+실행 중인 컨테이너 내부를 점검하거나 명령을 실행할 때는 메인 프로세스에 영향을 주지 않는 `docker exec`가 더 안전하다는 점을 확인했습니다.
+
+## 8. Ubuntu 컨테이너 트러블슈팅
+
+### 8.1 동일한 컨테이너 이름 사용으로 인한 충돌
+
+#### 문제
+
+다음 명령으로 `ubuntu-background` 컨테이너를 생성하려고 했습니다.
+
+```bash
+docker run -dit \
+  --name ubuntu-background \
+  ubuntu:24.04 \
+  bash
+```
+
+하지만 다음 오류가 발생했습니다.
+
+```text
+Conflict. The container name "/ubuntu-background" is already in use.
+You have to remove (or rename) that container to be able to reuse that name.
+```
+
+#### 원인 가설
+
+이전에 생성했던 `ubuntu-background` 컨테이너가 종료되었거나 실행 중인 상태로 남아 있어 동일한 이름을 다시 사용할 수 없는 것으로 판단했습니다.
+
+#### 확인
+
+종료된 컨테이너를 포함하여 해당 이름을 사용하는 컨테이너를 확인했습니다.
+
+```bash
+docker ps -a --filter "name=ubuntu-background"
+```
+
+기존 `ubuntu-background` 컨테이너가 존재하는 것을 확인했습니다.
+
+#### 해결
+
+기존 컨테이너를 계속 사용하기 위해 다음 명령으로 다시 시작했습니다.
+
+```bash
+docker start ubuntu-background
+```
+
+컨테이너 내부 접속은 `docker exec`를 이용했습니다.
+
+```bash
+docker exec -it ubuntu-background bash
+```
+
+기존 컨테이너가 필요하지 않은 경우에는 다음 명령으로 삭제한 뒤 같은 이름을 다시 사용할 수 있습니다.
+
+```bash
+docker rm -f ubuntu-background
+```
+
+#### 결과
+
+기존 컨테이너를 정상적으로 다시 실행하고 내부에 접속할 수 있었습니다.
+
+Docker에서는 실행 상태와 관계없이 존재하는 컨테이너의 이름을 중복해서 사용할 수 없다는 점을 확인했습니다.
+
+### 8.2 `docker attach`에서 `exit` 후 컨테이너 종료
+
+#### 문제
+
+`docker attach`로 접속한 뒤 `exit`를 입력하자 `ubuntu-background` 컨테이너가 실행 중인 목록에서 사라졌습니다.
+
+```bash
+docker attach ubuntu-background
+```
+
+```bash
+exit
+```
+
+```bash
+docker ps
+```
+
+#### 원인 가설
+
+`docker attach`가 컨테이너 내부에 새로운 Bash를 실행하는 것이 아니라, 컨테이너의 메인 Bash 프로세스에 직접 연결하기 때문이라고 판단했습니다.
+
+#### 확인
+
+종료된 컨테이너를 포함한 전체 목록을 확인했습니다.
+
+```bash
+docker ps -a --filter "name=ubuntu-background"
+```
+
+`ubuntu-background` 컨테이너가 `Exited` 상태인 것을 확인했습니다.
+
+#### 해결
+
+컨테이너를 다시 실행했습니다.
+
+```bash
+docker start ubuntu-background
+```
+
+VSCode 통합 터미널에서 기본 연결 해제 키가 원활하게 동작하지 않을 수 있어 사용자 지정 연결 해제 키를 사용했습니다.
+
+```bash
+docker attach \
+  --detach-keys="ctrl-x" \
+  ubuntu-background
+```
+
+컨테이너 내부에서 `exit`를 입력하지 않고 `Control + X`를 눌러 연결만 해제했습니다.
+
+#### 결과
+
+다시 `docker ps`를 실행했을 때 `ubuntu-background` 컨테이너가 계속 `Up` 상태를 유지했습니다.
+
+이번 실습을 통해 `docker attach`에서 `exit`를 입력하는 것과 연결만 해제하는 것은 서로 다른 동작임을 확인했습니다.
