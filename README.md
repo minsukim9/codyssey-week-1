@@ -438,3 +438,299 @@ rw-r--r--
 └── terminal-practice
     └── original.txt
 ```
+
+## 6. Docker 설치 및 기본 점검
+
+Docker Desktop을 이용해 macOS에서 Docker 컨테이너 실행 환경을 구성했습니다.
+
+Docker CLI 설치 여부와 Docker 엔진의 동작 상태를 확인한 뒤, `hello-world` 컨테이너를 실행하여 이미지 다운로드부터 컨테이너 종료까지의 흐름을 확인했습니다.
+
+### 6.1 Docker 실행 환경
+
+이번 실습에서 사용한 Docker 환경은 다음과 같습니다.
+
+| 항목 | 실행 환경 |
+|---|---|
+| 운영체제 | macOS |
+| CPU 아키텍처 | Apple Silicon ARM64 |
+| Docker 실행 환경 | Docker Desktop |
+| Docker Client | 28.1.1 |
+| Docker API | 1.49 |
+| Docker Context | `desktop-linux` |
+| Git | 2.51.0 |
+
+### 6.2 Docker 버전 확인
+
+`docker --version` 명령으로 Docker CLI의 설치 여부와 버전을 확인했습니다.
+
+```bash
+docker --version
+```
+
+```text
+Docker version 28.1.1
+```
+
+Client와 Server의 상세 정보는 다음 명령으로 확인했습니다.
+
+```bash
+docker version
+```
+
+Docker Client 정보뿐만 아니라 Server 정보도 함께 출력되는 것을 통해 Docker CLI와 Docker 엔진이 정상적으로 연결되어 있음을 확인했습니다.
+
+![Docker 버전 확인](./images/docker-practice/docker-version.png)
+
+### 6.3 Docker 엔진 동작 확인
+
+`docker info` 명령으로 Docker Context와 Docker 엔진의 실행 상태를 확인했습니다.
+
+```bash
+docker info
+```
+
+확인한 주요 항목은 다음과 같습니다.
+
+- Docker Client 버전
+- 현재 Docker Context
+- Docker Server 버전
+- 이미지 및 컨테이너 개수
+- Docker Desktop 실행 환경
+- Docker Compose 등 설치된 플러그인
+
+![Docker 엔진 동작 확인](./images/docker-practice/docker-info.png)
+
+출력 결과에서 현재 Context가 `desktop-linux`로 설정되어 있었으며, Docker Server 정보가 정상적으로 출력되었습니다.
+
+Docker Context는 다음 명령으로도 확인할 수 있습니다.
+
+```bash
+docker context ls
+```
+
+```text
+NAME              DESCRIPTION                               DOCKER ENDPOINT
+default           Current DOCKER_HOST based configuration
+desktop-linux *   Docker Desktop
+```
+
+`*` 표시는 현재 사용 중인 Docker Context를 의미합니다.
+
+### 6.4 Docker 데몬 연결 실패 트러블슈팅
+
+#### 문제
+
+최초로 `docker info` 명령을 실행했을 때 다음 오류가 발생했습니다.
+
+```text
+Cannot connect to the Docker daemon at unix:///Users/<username>/.docker/run/docker.sock.
+Is the docker daemon running?
+```
+
+Docker 버전은 정상적으로 출력됐지만 Docker Server 정보는 확인할 수 없었습니다.
+
+#### 원인 가설
+
+Docker CLI는 설치되어 있었지만 실제 컨테이너를 관리하는 Docker 엔진이 실행되지 않은 것으로 판단했습니다.
+
+현재 Docker Context는 `desktop-linux`였으므로 Docker Desktop의 엔진 상태를 확인했습니다.
+
+#### 확인
+
+다음 명령으로 Docker Context를 확인했습니다.
+
+```bash
+docker context ls
+```
+
+또한 macOS에서 Docker Desktop 애플리케이션의 실행 여부를 확인했습니다.
+
+#### 해결
+
+Docker Desktop을 실행하고 Docker 엔진이 완전히 시작될 때까지 기다린 뒤 `docker info`를 다시 실행했습니다.
+
+```bash
+docker info
+```
+
+#### 결과
+
+Docker Server 정보가 정상적으로 출력되었으며, Docker CLI가 Docker 엔진과 정상적으로 연결된 것을 확인했습니다.
+
+이번 문제를 통해 Docker CLI 설치와 Docker 엔진 실행은 서로 다른 상태라는 것을 확인했습니다.
+
+### 6.5 `hello-world` 컨테이너 실행
+
+Docker 컨테이너가 정상적으로 실행되는지 확인하기 위해 `hello-world` 이미지를 사용했습니다.
+
+```bash
+docker run --name hello-world-test hello-world
+```
+
+로컬 환경에 `hello-world` 이미지가 없었기 때문에 Docker가 이미지를 자동으로 다운로드한 뒤 컨테이너를 생성하고 실행했습니다.
+
+```text
+Hello from Docker!
+```
+
+![hello-world 실행](./images/docker-practice/hello-world.png)
+
+`hello-world` 컨테이너의 실행 과정은 다음과 같습니다.
+
+1. 로컬에 `hello-world` 이미지가 있는지 확인합니다.
+2. 이미지가 없으면 Docker Hub에서 다운로드합니다.
+3. 다운로드한 이미지로 컨테이너를 생성합니다.
+4. 컨테이너 내부 프로그램을 실행합니다.
+5. `Hello from Docker!` 메시지를 출력합니다.
+6. 작업 완료 후 컨테이너가 종료됩니다.
+
+### 6.6 Docker 이미지 목록 확인
+
+`docker images` 명령으로 로컬에 저장된 Docker 이미지 목록을 확인했습니다.
+
+```bash
+docker images
+```
+
+목록에서 `hello-world` 이미지가 다운로드된 것을 확인했습니다.
+
+![Docker 이미지 목록](./images/docker-practice/docker-images.png)
+
+Docker 이미지는 컨테이너를 생성하기 위한 읽기 전용 템플릿입니다. 하나의 이미지로 여러 컨테이너를 생성할 수 있습니다.
+
+### 6.7 컨테이너 목록 확인
+
+현재 실행 중인 컨테이너를 확인했습니다.
+
+```bash
+docker ps
+```
+
+`hello-world` 컨테이너는 메시지를 출력한 뒤 바로 종료되므로 실행 중인 컨테이너 목록에는 표시되지 않았습니다.
+
+종료된 컨테이너를 포함한 전체 컨테이너 목록은 `-a` 옵션으로 확인했습니다.
+
+```bash
+docker ps -a
+```
+
+`hello-world-test` 컨테이너가 다음과 같이 정상 종료된 상태로 표시되었습니다.
+
+```text
+Exited (0)
+```
+
+`Exited (0)`은 컨테이너 내부 프로세스가 오류 없이 정상적으로 종료됐다는 의미입니다.
+
+![전체 컨테이너 목록](./images/docker-practice/docker-ps-a.png)
+
+### 6.8 컨테이너 로그 확인
+
+`docker logs` 명령으로 컨테이너가 실행될 때 출력한 로그를 다시 확인했습니다.
+
+```bash
+docker logs hello-world-test
+```
+
+```text
+Hello from Docker!
+```
+
+![Docker 컨테이너 로그](./images/docker-practice/docker-logs.png)
+
+컨테이너가 종료된 이후에도 삭제하지 않았다면 실행 당시의 로그를 확인할 수 있습니다.
+
+### 6.9 실행 중인 컨테이너 리소스 확인
+
+`hello-world` 컨테이너는 바로 종료되기 때문에 별도의 Alpine 컨테이너를 백그라운드에서 실행했습니다.
+
+```bash
+docker run -d \
+  --name stats-test \
+  alpine \
+  sleep 300
+```
+
+실행 중인 컨테이너를 확인했습니다.
+
+```bash
+docker ps
+```
+
+이후 `docker stats` 명령으로 컨테이너의 CPU 및 메모리 사용량을 확인했습니다.
+
+```bash
+docker stats --no-stream
+```
+
+`--no-stream` 옵션을 사용하면 리소스 사용량을 한 번만 출력한 뒤 명령이 종료됩니다.
+
+![Docker 리소스 사용량](./images/docker-practice/docker-stats.png)
+
+주요 확인 항목은 다음과 같습니다.
+
+- CPU 사용률
+- 메모리 사용량
+- 네트워크 입출력
+- 디스크 입출력
+- 프로세스 개수
+
+### 6.10 컨테이너 중지 및 삭제
+
+실행 중인 `stats-test` 컨테이너를 중지했습니다.
+
+```bash
+docker stop stats-test
+```
+
+중지된 컨테이너를 포함한 전체 목록을 확인했습니다.
+
+```bash
+docker ps -a
+```
+
+실습을 마친 컨테이너를 삭제했습니다.
+
+```bash
+docker rm stats-test
+docker rm hello-world-test
+```
+
+삭제 결과를 다시 확인했습니다.
+
+```bash
+docker ps -a
+```
+
+컨테이너를 삭제해도 컨테이너 생성에 사용한 Docker 이미지는 자동으로 삭제되지 않습니다.
+
+이미지는 다음 명령으로 별도로 확인할 수 있습니다.
+
+```bash
+docker images
+```
+
+### 6.11 이미지와 컨테이너의 차이
+
+Docker 이미지와 컨테이너는 다음과 같은 차이가 있습니다.
+
+| 구분 | Docker 이미지 | Docker 컨테이너 |
+|---|---|---|
+| 역할 | 컨테이너 생성에 사용하는 템플릿 | 이미지를 기반으로 생성된 실행 환경 |
+| 상태 | 읽기 전용 | 실행 중 변경 가능 |
+| 관계 | 하나의 이미지로 여러 컨테이너 생성 가능 | 특정 이미지를 기반으로 생성 |
+| 삭제 | 컨테이너와 별도로 관리 | 삭제해도 이미지는 유지됨 |
+
+`hello-world` 이미지를 내려받은 뒤 `hello-world-test` 컨테이너를 생성하면서 이미지와 컨테이너가 분리되어 관리된다는 점을 확인했습니다.
+
+### 6.12 Docker 기본 점검 결과
+
+이번 실습을 통해 다음 내용을 확인했습니다.
+
+- Docker CLI와 Docker 엔진은 서로 다른 구성 요소입니다.
+- Docker Desktop이 실행되어야 Docker 엔진에 연결할 수 있습니다.
+- 이미지가 로컬에 없으면 Docker Hub에서 자동으로 다운로드합니다.
+- Docker 이미지를 기반으로 컨테이너가 생성됩니다.
+- 컨테이너의 메인 프로세스가 끝나면 컨테이너도 종료됩니다.
+- 종료된 컨테이너도 삭제 전까지 로그와 실행 상태를 확인할 수 있습니다.
+- `docker stats`를 통해 실행 중인 컨테이너의 자원 사용량을 확인할 수 있습니다.
