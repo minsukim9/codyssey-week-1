@@ -2014,3 +2014,457 @@ docker volume rm codyssey-data
 - 새로운 컨테이너에 동일한 볼륨을 연결하면 기존 데이터를 다시 조회할 수 있습니다.
 - Docker 볼륨은 컨테이너의 생명주기와 독립적으로 영속 데이터를 관리할 때 사용합니다.
 - 바인드 마운트는 개발 파일 공유에 적합하고, Docker 볼륨은 영속 데이터 저장에 적합합니다.
+
+## 12. Git 설정 및 GitHub·VSCode 연동
+
+Git 사용자 정보와 기본 브랜치 설정을 확인하고, 로컬 저장소가 GitHub 원격 저장소와 정상적으로 연결되어 있는지 검증했습니다.
+
+또한 VSCode에서 프로젝트 저장소를 열고 Source Control 기능을 통해 Git 저장소가 정상적으로 인식되는 것을 확인했습니다.
+
+### 12.1 Git 사용자 정보 및 기본 브랜치 확인
+
+Git 커밋에 사용되는 사용자 이름과 이메일을 확인했습니다.
+
+```bash
+git config --global user.name
+git config --global user.email
+```
+
+Git 저장소를 처음 생성할 때 사용할 기본 브랜치 설정도 확인했습니다.
+
+```bash
+git config --global init.defaultBranch
+```
+
+전체 Git 설정은 다음 명령으로 확인했습니다.
+
+```bash
+git config --list
+```
+
+Git 설정 결과를 공개하기 전에 토큰, 비밀번호, 인증 코드와 같은 민감정보가 포함되지 않았는지 확인했습니다.
+
+### 12.2 현재 브랜치 및 작업 상태 확인
+
+현재 사용 중인 브랜치를 확인했습니다.
+
+```bash
+git branch --show-current
+```
+
+```text
+main
+```
+
+현재 작업 디렉토리와 스테이징 영역의 상태를 확인했습니다.
+
+```bash
+git status
+```
+
+`git status` 명령으로 다음 내용을 확인할 수 있습니다.
+
+- 현재 브랜치
+- 수정된 파일
+- 새로 생성된 파일
+- 스테이징된 파일
+- 원격 저장소와의 동기화 상태
+
+### 12.3 GitHub 원격 저장소 연결 확인
+
+로컬 저장소에 등록된 GitHub 원격 저장소 정보를 확인했습니다.
+
+```bash
+git remote -v
+```
+
+다음과 같이 `origin` 원격 저장소가 표시되는 것을 확인했습니다.
+
+```text
+origin  https://github.com/minsukim9/codyssey-week-1.git (fetch)
+origin  https://github.com/minsukim9/codyssey-week-1.git (push)
+```
+
+`fetch`는 원격 저장소의 변경 사항을 가져올 때 사용하는 주소이고, `push`는 로컬 커밋을 원격 저장소에 전송할 때 사용하는 주소입니다.
+
+### 12.4 Git 및 VSCode 연동 증거
+
+Git 설정, 현재 브랜치, 원격 저장소 연결 상태와 VSCode의 Source Control 화면을 함께 확인했습니다.
+
+![Git 설정 및 GitHub·VSCode 연동 확인](./images/git-practice/git-config.png)
+
+확인한 항목은 다음과 같습니다.
+
+- Git 사용자 이름과 이메일 설정
+- 기본 브랜치 `main` 설정
+- 현재 브랜치 확인
+- GitHub 원격 저장소 `origin` 연결
+- VSCode의 Git 저장소 인식
+- Source Control의 변경 파일 확인
+- 로컬 저장소와 GitHub 저장소 연동
+
+### 12.5 Git 커밋 및 Push
+
+변경된 파일을 스테이징 영역에 추가했습니다.
+
+```bash
+git add .
+```
+
+스테이징 상태를 확인했습니다.
+
+```bash
+git status
+```
+
+변경 사항을 커밋했습니다.
+
+```bash
+git commit -m "docs: Git 연동 및 최종 실습 결과 정리"
+```
+
+로컬 커밋을 GitHub 원격 저장소에 반영했습니다.
+
+```bash
+git push origin main
+```
+
+Push 이후 작업 상태를 다시 확인했습니다.
+
+```bash
+git status
+```
+
+```text
+nothing to commit, working tree clean
+```
+
+이를 통해 로컬 변경 사항이 모두 커밋되고 GitHub 원격 저장소에 반영된 것을 확인했습니다.
+
+### 12.6 Git과 GitHub의 차이
+
+| 구분 | Git | GitHub |
+|---|---|---|
+| 종류 | 분산 버전 관리 도구 | Git 저장소 호스팅 및 협업 플랫폼 |
+| 실행 위치 | 로컬 컴퓨터 | 원격 서버 |
+| 주요 역할 | 변경 이력, 브랜치, 커밋 관리 | 저장소 공유, 코드 리뷰, 협업 |
+| 대표 작업 | `add`, `commit`, `branch` | `push`, `pull`, Pull Request |
+| 인터넷 필요 여부 | 로컬 기능에는 필요하지 않음 | 원격 기능 사용 시 필요 |
+
+Git은 로컬 컴퓨터에서 파일의 변경 이력을 관리합니다.
+
+GitHub는 Git으로 관리하는 저장소를 원격에 보관하고 다른 사람과 공유하거나 협업할 수 있도록 지원합니다.
+
+```text
+파일 수정
+   ↓
+git add
+   ↓
+git commit
+   ↓
+로컬 Git 저장소
+   ↓
+git push
+   ↓
+GitHub 원격 저장소
+```
+
+### 12.7 보안 및 개인정보 확인
+
+Git 설정과 VSCode 화면을 캡처하기 전에 다음 정보가 포함되지 않았는지 확인했습니다.
+
+- GitHub 비밀번호
+- Personal Access Token
+- SSH 개인키
+- 인증 코드
+- Docker 또는 GitHub 인증 토큰
+- 공개할 필요가 없는 개인정보
+
+민감정보가 포함된 경우 해당 부분을 마스킹한 뒤 이미지를 저장했습니다.
+
+### 12.8 검증 결과
+
+이번 실습을 통해 다음 내용을 확인했습니다.
+
+- Git 사용자 이름과 이메일 설정을 확인할 수 있습니다.
+- Git의 기본 브랜치를 `main`으로 설정할 수 있습니다.
+- `git status`로 작업 디렉토리 상태를 확인할 수 있습니다.
+- `git remote -v`로 GitHub 원격 저장소 연결을 확인할 수 있습니다.
+- 로컬 커밋을 `git push`로 GitHub에 전송할 수 있습니다.
+- VSCode의 Source Control 기능과 터미널의 Git 명령은 동일한 저장소를 사용합니다.
+- Git은 로컬 버전 관리 도구이고 GitHub는 원격 저장소 및 협업 플랫폼입니다.
+
+## 13. 트러블슈팅
+
+실습 과정에서 발생한 문제를 `문제 → 원인 가설 → 확인 → 해결 → 결과` 순서로 정리했습니다.
+
+### 13.1 Docker 데몬 연결 실패
+
+#### 문제
+
+Docker 설치 후 다음 명령으로 실행 환경을 확인했습니다.
+
+```bash
+docker info
+```
+
+하지만 Docker Server 정보가 출력되지 않고 다음 오류가 발생했습니다.
+
+```text
+Cannot connect to the Docker daemon at unix:///Users/<username>/.docker/run/docker.sock.
+Is the docker daemon running?
+```
+
+`docker --version` 명령은 정상적으로 실행되었지만 컨테이너를 실행할 수 없는 상태였습니다.
+
+#### 원인 가설
+
+Docker 명령어를 제공하는 Docker CLI는 설치되어 있지만, 실제 이미지와 컨테이너를 관리하는 Docker 엔진이 실행되지 않은 것으로 판단했습니다.
+
+#### 확인
+
+현재 Docker Context를 확인했습니다.
+
+```bash
+docker context ls
+```
+
+```text
+NAME              DESCRIPTION                               DOCKER ENDPOINT
+default           Current DOCKER_HOST based configuration
+desktop-linux *   Docker Desktop
+```
+
+현재 Context는 `desktop-linux`로 설정되어 있었지만 Docker Desktop 애플리케이션이 실행되지 않은 상태였습니다.
+
+#### 해결
+
+Docker Desktop을 실행하고 Docker 엔진이 완전히 시작될 때까지 기다렸습니다.
+
+이후 다음 명령을 다시 실행했습니다.
+
+```bash
+docker info
+```
+
+#### 결과
+
+Docker Client 정보와 함께 Docker Server 정보가 정상적으로 출력되었습니다.
+
+이번 문제를 통해 Docker CLI 설치 여부와 Docker 엔진 실행 여부는 서로 다른 상태라는 것을 확인했습니다.
+
+---
+
+### 13.2 동일한 컨테이너 이름 사용으로 인한 충돌
+
+#### 문제
+
+다음 명령으로 `ubuntu-background` 컨테이너를 생성하려고 했습니다.
+
+```bash
+docker run -dit \
+  --name ubuntu-background \
+  ubuntu:24.04 \
+  bash
+```
+
+하지만 다음 오류가 발생했습니다.
+
+```text
+Conflict. The container name "/ubuntu-background" is already in use.
+You have to remove (or rename) that container to be able to reuse that name.
+```
+
+#### 원인 가설
+
+이전에 생성한 `ubuntu-background` 컨테이너가 종료되었더라도 삭제되지 않고 남아 있어 같은 이름을 다시 사용할 수 없는 것으로 판단했습니다.
+
+#### 확인
+
+종료된 컨테이너를 포함하여 해당 이름을 사용하는 컨테이너를 확인했습니다.
+
+```bash
+docker ps -a --filter "name=ubuntu-background"
+```
+
+기존 `ubuntu-background` 컨테이너가 목록에 존재하는 것을 확인했습니다.
+
+#### 해결
+
+기존 컨테이너를 계속 사용하기 위해 다음 명령으로 다시 시작했습니다.
+
+```bash
+docker start ubuntu-background
+```
+
+실행 중인 컨테이너 내부에는 다음 명령으로 접속했습니다.
+
+```bash
+docker exec -it ubuntu-background bash
+```
+
+기존 컨테이너가 필요하지 않은 경우에는 다음과 같이 삭제한 뒤 같은 이름으로 다시 생성할 수 있습니다.
+
+```bash
+docker rm -f ubuntu-background
+```
+
+#### 결과
+
+기존 컨테이너를 정상적으로 다시 실행하고 내부에 접속할 수 있었습니다.
+
+Docker에서는 컨테이너의 실행 여부와 관계없이 이미 존재하는 컨테이너의 이름을 중복해서 사용할 수 없다는 것을 확인했습니다.
+
+---
+
+### 13.3 `docker attach`에서 `exit` 실행 후 컨테이너 종료
+
+#### 문제
+
+실행 중인 Ubuntu 컨테이너에 다음 명령으로 연결했습니다.
+
+```bash
+docker attach ubuntu-background
+```
+
+연결된 상태에서 `exit`를 입력했습니다.
+
+```bash
+exit
+```
+
+이후 실행 중인 컨테이너를 확인했지만 `ubuntu-background`가 목록에서 사라졌습니다.
+
+```bash
+docker ps
+```
+
+#### 원인 가설
+
+`docker attach`는 컨테이너 내부에 새로운 Bash 프로세스를 생성하는 것이 아니라, 컨테이너의 메인 프로세스에 직접 연결하기 때문이라고 판단했습니다.
+
+`ubuntu-background` 컨테이너의 메인 프로세스는 Bash였으므로 `exit`를 입력하면 메인 Bash가 종료되고 컨테이너도 함께 종료될 수 있습니다.
+
+#### 확인
+
+종료된 컨테이너를 포함하여 상태를 확인했습니다.
+
+```bash
+docker ps -a --filter "name=ubuntu-background"
+```
+
+`ubuntu-background` 컨테이너가 `Exited` 상태로 표시되는 것을 확인했습니다.
+
+#### 해결
+
+종료된 컨테이너를 다시 시작했습니다.
+
+```bash
+docker start ubuntu-background
+```
+
+VSCode 통합 터미널에서는 Docker의 기본 연결 해제 키인 `Control + P`, `Control + Q`가 단축키와 충돌할 수 있어 사용자 지정 연결 해제 키를 적용했습니다.
+
+```bash
+docker attach \
+  --detach-keys="ctrl-x" \
+  ubuntu-background
+```
+
+컨테이너에 연결한 뒤 `exit`를 입력하지 않고 `Control + X`를 눌러 연결만 해제했습니다.
+
+#### 결과
+
+연결을 해제한 뒤 컨테이너 상태를 확인했습니다.
+
+```bash
+docker ps
+```
+
+`ubuntu-background` 컨테이너가 계속 `Up` 상태를 유지했습니다.
+
+이번 실습을 통해 `docker attach` 상태에서 `exit`를 입력하는 것과 컨테이너를 종료하지 않고 연결만 해제하는 것은 서로 다른 동작임을 확인했습니다.
+
+실행 중인 컨테이너 내부를 점검할 때는 메인 프로세스에 직접 연결하는 `docker attach`보다 별도의 프로세스를 실행하는 `docker exec`를 사용하는 것이 더 안전합니다.
+
+---
+
+### 13.4 읽기 전용 바인드 마운트 파일 수정 실패
+
+#### 문제
+
+바인드 마운트로 연결한 파일을 컨테이너 내부에서 수정하기 위해 다음 명령을 실행했습니다.
+
+```bash
+docker exec bind-web \
+  sh -c 'echo "container change" >> /usr/share/nginx/html/index.html'
+```
+
+하지만 다음 오류가 발생했습니다.
+
+```text
+Read-only file system
+```
+
+#### 원인 가설
+
+`bind-web` 컨테이너를 실행할 때 바인드 마운트에 `readonly` 옵션을 적용했기 때문에 컨테이너에서 해당 경로를 수정할 수 없는 것으로 판단했습니다.
+
+```bash
+docker run -d \
+  --name bind-web \
+  -p 8080:80 \
+  --mount type=bind,source="$(pwd)/app",target=/usr/share/nginx/html,readonly \
+  nginx:alpine
+```
+
+#### 확인
+
+`docker inspect` 명령으로 컨테이너의 바인드 마운트 설정을 확인했습니다.
+
+```bash
+docker inspect bind-web \
+  --format '{{range .Mounts}}{{println "Type:" .Type}}{{println "Destination:" .Destination}}{{println "ReadOnly:" (not .RW)}}{{end}}'
+```
+
+```text
+Type: bind
+Destination: /usr/share/nginx/html
+ReadOnly: true
+```
+
+마운트 대상이 읽기 전용으로 연결되어 있음을 확인했습니다.
+
+#### 해결 및 대안
+
+이번 실습에서는 컨테이너가 호스트의 소스 파일을 변경하지 못하도록 제한하는 것이 목적이었으므로 `readonly` 설정을 그대로 유지했습니다.
+
+컨테이너에서도 마운트된 파일을 수정해야 한다면 기존 컨테이너를 삭제하고 `readonly` 옵션 없이 다시 실행할 수 있습니다.
+
+```bash
+docker rm -f bind-web
+
+docker run -d \
+  --name bind-web \
+  -p 8080:80 \
+  --mount type=bind,source="$(pwd)/app",target=/usr/share/nginx/html \
+  nginx:alpine
+```
+
+#### 결과
+
+`Read-only file system` 오류는 Docker 실행 실패가 아니라, 설정한 읽기 전용 권한이 의도대로 동작한 결과라는 것을 확인했습니다.
+
+읽기 전용 마운트를 사용하면 컨테이너 프로세스가 호스트의 소스코드를 실수로 변경하는 것을 방지할 수 있습니다.
+
+### 13.5 트러블슈팅 결과
+
+이번 트러블슈팅을 통해 다음 내용을 확인했습니다.
+
+- Docker CLI가 설치되어 있어도 Docker 엔진이 실행되지 않으면 컨테이너를 사용할 수 없습니다.
+- 종료된 컨테이너도 삭제되지 않았다면 동일한 이름을 다시 사용할 수 없습니다.
+- `docker attach`는 컨테이너의 메인 프로세스에 직접 연결합니다.
+- `docker attach` 상태에서 메인 프로세스를 종료하면 컨테이너도 함께 종료될 수 있습니다.
+- 실행 중인 컨테이너 점검에는 `docker exec`가 비교적 안전합니다.
+- 바인드 마운트의 `readonly` 옵션은 컨테이너에서 호스트 파일을 수정하지 못하도록 제한합니다.
+- 오류 메시지와 컨테이너 상태를 함께 확인하면 문제의 원인을 구체적으로 파악할 수 있습니다.
