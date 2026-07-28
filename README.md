@@ -1469,3 +1469,263 @@ docker build -t codyssey-web:1.0 .
 - `-p 8080:80`으로 호스트와 컨테이너의 포트를 연결했습니다.
 - `curl` 응답과 브라우저 화면에서 웹 페이지가 정상적으로 제공되는 것을 확인했습니다.
 - Dockerfile을 이용하면 동일한 웹 서버 환경을 반복해서 재현할 수 있음을 확인했습니다.
+
+## 10. 바인드 마운트 변경 반영 검증
+
+호스트인 MacBook의 `app` 디렉토리를 NGINX 컨테이너 내부에 바인드 마운트한 뒤, 호스트 파일의 변경 사항이 이미지 재빌드나 컨테이너 재시작 없이 즉시 반영되는지 확인했습니다.
+
+### 10.1 기존 웹 서버 컨테이너 정리
+
+기존 `codyssey-web` 컨테이너가 호스트의 8080번 포트를 사용하고 있었기 때문에 바인드 마운트 실습 전에 해당 컨테이너를 삭제했습니다.
+
+```bash
+docker rm -f codyssey-web
+```
+
+삭제 여부는 다음 명령으로 확인했습니다.
+
+```bash
+docker ps -a --filter "name=codyssey-web"
+```
+
+컨테이너만 삭제했으며, 이전에 빌드한 `codyssey-web:1.0` 이미지는 그대로 유지했습니다.
+
+### 10.2 바인드 마운트 컨테이너 실행
+
+호스트의 `app` 디렉토리를 컨테이너 내부의 NGINX 정적 파일 경로에 연결했습니다.
+
+```bash
+docker run -d \
+  --name bind-web \
+  -p 8080:80 \
+  --mount type=bind,source="$(pwd)/app",target=/usr/share/nginx/html,readonly \
+  nginx:alpine
+```
+
+실행 옵션은 다음과 같습니다.
+
+| 설정 | 의미 |
+|---|---|
+| `-d` | 컨테이너를 백그라운드에서 실행 |
+| `--name bind-web` | 컨테이너 이름을 `bind-web`으로 지정 |
+| `-p 8080:80` | 호스트의 8080번 포트를 컨테이너의 80번 포트에 연결 |
+| `type=bind` | 바인드 마운트 방식 사용 |
+| `source="$(pwd)/app"` | 호스트에서 연결할 `app` 디렉토리 |
+| `target=/usr/share/nginx/html` | 컨테이너 내부 NGINX 정적 파일 경로 |
+| `readonly` | 컨테이너에서 마운트된 파일을 수정하지 못하도록 제한 |
+
+컨테이너 실행 상태를 확인했습니다.
+
+```bash
+docker ps
+```
+
+`bind-web` 컨테이너가 `Up` 상태로 표시되고 다음 포트 연결 정보를 확인했습니다.
+
+```text
+0.0.0.0:8080->80/tcp
+```
+
+### 10.3 바인드 마운트 정보 확인
+
+`docker inspect` 명령으로 컨테이너에 적용된 마운트 정보를 확인했습니다.
+
+```bash
+docker inspect bind-web \
+  --format '{{range .Mounts}}{{println "Type:" .Type}}{{println "Source:" .Source}}{{println "Destination:" .Destination}}{{println "ReadOnly:" (not .RW)}}{{end}}'
+```
+
+출력 결과는 다음과 같은 형태로 나타났습니다.
+
+```text
+Type: bind
+Source: /Users/<username>/.../codyssey-week-1/app
+Destination: /usr/share/nginx/html
+ReadOnly: true
+```
+
+![바인드 마운트 정보](./images/bind-mount-practice/bind-mount-info.png)
+
+이를 통해 호스트의 `app` 디렉토리가 컨테이너 내부의 `/usr/share/nginx/html` 경로와 읽기 전용으로 연결된 것을 확인했습니다.
+
+### 10.4 변경 전 웹 페이지 확인
+
+호스트의 `app/index.html` 파일 내용을 확인했습니다.
+
+```bash
+cat app/index.html
+```
+
+터미널에서 웹 서버 응답을 확인했습니다.
+
+```bash
+curl http://localhost:8080
+```
+
+브라우저에서도 다음 주소로 접속했습니다.
+
+```text
+http://localhost:8080
+```
+
+변경 전에는 다음 문구가 표시되었습니다.
+
+```text
+Dockerfile로 실행한 NGINX 웹 서버입니다.
+```
+
+![변경 전 웹 페이지](./images/bind-mount-practice/before-change.png)
+
+### 10.5 호스트 파일 변경
+
+컨테이너를 중지하거나 이미지를 다시 빌드하지 않은 상태에서 호스트의 `app/index.html` 내용을 변경했습니다.
+
+macOS의 `sed` 명령을 사용하여 기존 문구를 새로운 문구로 교체했습니다.
+
+```bash
+sed -i '' \
+  's/Dockerfile로 실행한 NGINX 웹 서버입니다./바인드 마운트로 변경 사항이 반영되었습니다./' \
+  app/index.html
+```
+
+변경 결과를 확인했습니다.
+
+```bash
+grep -n "바인드 마운트" app/index.html
+```
+
+```text
+바인드 마운트로 변경 사항이 반영되었습니다.
+```
+
+macOS에서는 `sed` 명령으로 원본 파일을 직접 수정할 때 `-i ''` 형식을 사용합니다.
+
+### 10.6 변경 사항 즉시 반영 확인
+
+이미지를 다시 빌드하거나 컨테이너를 재시작하지 않고 웹 서버 응답을 다시 확인했습니다.
+
+```bash
+curl http://localhost:8080
+```
+
+브라우저에서 페이지를 새로고침했습니다.
+
+```text
+http://localhost:8080
+```
+
+변경 후에는 다음 문구가 표시되었습니다.
+
+```text
+바인드 마운트로 변경 사항이 반영되었습니다.
+```
+
+![변경 후 웹 페이지](./images/bind-mount-practice/after-change.png)
+
+호스트의 파일을 수정하자 실행 중인 컨테이너의 웹 페이지에도 변경 내용이 즉시 반영되는 것을 확인했습니다.
+
+### 10.7 컨테이너 내부 파일 확인
+
+호스트에서 변경한 내용이 컨테이너 내부 파일에서도 확인되는지 검증했습니다.
+
+```bash
+docker exec bind-web \
+  grep -n "바인드 마운트" /usr/share/nginx/html/index.html
+```
+
+호스트의 `app/index.html`에서 확인한 것과 동일한 문구가 출력되었습니다.
+
+![컨테이너 내부 파일 확인](./images/bind-mount-practice/container-file-check.png)
+
+호스트 파일이 컨테이너 내부에 새로 복사된 것이 아니라, 두 경로가 직접 연결되어 있기 때문에 동일한 내용이 조회됩니다.
+
+```text
+MacBook의 app/index.html
+              │
+              │ 바인드 마운트
+              ▼
+컨테이너의 /usr/share/nginx/html/index.html
+```
+
+### 10.8 읽기 전용 마운트 확인
+
+컨테이너 실행 시 `readonly` 옵션을 적용했기 때문에 컨테이너 내부에서 마운트된 파일을 수정할 수 없는지 확인했습니다.
+
+```bash
+docker exec bind-web \
+  sh -c 'echo "container change" >> /usr/share/nginx/html/index.html'
+```
+
+다음과 같은 오류가 발생했습니다.
+
+```text
+Read-only file system
+```
+
+![읽기 전용 마운트 확인](./images/bind-mount-practice/readonly-check.png)
+
+컨테이너는 호스트의 웹 파일을 읽을 수 있지만, 해당 파일을 수정할 수 없음을 확인했습니다.
+
+읽기 전용 마운트를 사용하면 컨테이너 프로세스가 호스트의 소스코드를 실수로 변경하는 것을 방지할 수 있습니다.
+
+### 10.9 Dockerfile의 `COPY`와 바인드 마운트 비교
+
+Dockerfile의 `COPY` 방식과 바인드 마운트 방식은 다음과 같은 차이가 있습니다.
+
+| 구분 | Dockerfile `COPY` | 바인드 마운트 |
+|---|---|---|
+| 파일 저장 위치 | 이미지 내부 | 호스트 파일 시스템 |
+| 호스트 파일 변경 | 기존 이미지에 반영되지 않음 | 실행 중인 컨테이너에 즉시 반영 |
+| 이미지 재빌드 | 필요 | 필요하지 않음 |
+| 호스트 경로 의존성 | 비교적 낮음 | 호스트 경로에 의존 |
+| 주요 용도 | 배포용 이미지 제작 | 로컬 개발 및 변경 확인 |
+
+Dockerfile의 `COPY` 방식에서는 파일 변경 후 다음과 같이 이미지를 다시 빌드해야 합니다.
+
+```bash
+docker build -t codyssey-web:1.0 .
+```
+
+반면 바인드 마운트 방식에서는 호스트의 `app/index.html`을 수정하는 것만으로 실행 중인 웹 서버에 변경 사항이 반영되었습니다.
+
+### 10.10 바인드 마운트가 필요한 이유
+
+개발 과정에서 소스코드를 수정할 때마다 Docker 이미지를 다시 빌드하면 작업 시간이 증가합니다.
+
+바인드 마운트를 사용하면 호스트의 개발 파일을 컨테이너에서 직접 참조할 수 있으므로 다음 흐름으로 작업할 수 있습니다.
+
+```text
+호스트에서 파일 수정
+        ↓
+바인드 마운트 경로에 즉시 반영
+        ↓
+컨테이너가 변경된 파일 사용
+        ↓
+브라우저 새로고침으로 결과 확인
+```
+
+따라서 바인드 마운트는 코드나 정적 파일을 자주 수정하는 로컬 개발 환경에 적합합니다.
+
+### 10.11 운영 상태 확인
+
+실행 중인 바인드 마운트 컨테이너의 상태와 로그, 리소스 사용량을 확인했습니다.
+
+```bash
+docker ps
+docker logs bind-web
+docker stats --no-stream bind-web
+```
+
+`docker logs`를 통해 NGINX의 요청 로그를 확인하고, `docker stats --no-stream`을 통해 CPU와 메모리 사용량을 확인했습니다.
+
+### 10.12 검증 결과
+
+이번 실습을 통해 다음 내용을 확인했습니다.
+
+- 호스트 디렉토리를 컨테이너 내부 경로에 직접 연결할 수 있습니다.
+- `docker inspect`로 바인드 마운트의 원본 경로와 대상 경로를 확인할 수 있습니다.
+- 호스트 파일을 수정하면 이미지 재빌드 없이 실행 중인 컨테이너에 즉시 반영됩니다.
+- 바인드 마운트는 호스트의 실제 파일을 컨테이너에서 직접 참조합니다.
+- `readonly` 옵션으로 컨테이너의 파일 수정 권한을 제한할 수 있습니다.
+- Dockerfile의 `COPY`는 배포용 이미지 제작에 적합합니다.
+- 바인드 마운트는 로컬 개발 중 변경 사항을 빠르게 확인할 때 적합합니다.
